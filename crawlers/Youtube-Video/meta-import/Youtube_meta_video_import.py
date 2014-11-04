@@ -56,7 +56,7 @@ def readYoutubeData(_param_data_folder, source):
           continue
         folder = join(_param_data_folder, keyword)
         for f in os.listdir(folder):
-            if f.endswith(".json"):
+            if f.endswith(".json") and not f.startswith("."):
                 print "Importing", folder + "/"  + f
                 fi = open (join(folder, f), 'r')  
                 #parse that file
@@ -75,7 +75,7 @@ def readYoutubeData(_param_data_folder, source):
     #write data to mongo db
     writer = ItemWriter(source,'Youtube-video')
     for item in itemset:
-      writer.write_item(item)
+      writer.write_item(itemset[item])
 
 if __name__ == '__main__':
   #_param_data_folder = "/Work/EUMSSI/data/youtube/deutschewelleenglish-jsonraw"
