@@ -80,5 +80,5 @@ def readYoutubeData(_param_data_folder, source):
 if __name__ == '__main__':
   #_param_data_folder = "/Work/EUMSSI/data/youtube/deutschewelleenglish-jsonraw"
   _param_data_folder = sys.argv[1]
-  source = "DW-EN"
+  source = "TheGuardian-EN"
   readYoutubeData(_param_data_folder, source)
