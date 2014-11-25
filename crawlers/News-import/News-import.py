@@ -38,6 +38,15 @@ def readJsonData(_param_data_file, source):
     for item in itemset:
         i+=1
         print i, " item indexed "
+        #update language 
+        if item["sourceLabel"] =="GreenPower-Zeit":
+            item["language"]="DE"
+        if item["sourceLabel"] =="GreenPower-elpais":
+            item["language"]="ES"
+        if item["sourceLabel"] =="GreenPower-lemonde":
+            item["language"]="FR"
+        if item["sourceLabel"] =="GreenPower-Guardian":
+            item["language"]="EN"    
         writer.write_status(item, source)
 
 if __name__ == '__main__':
