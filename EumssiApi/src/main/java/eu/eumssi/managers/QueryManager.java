@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.bson.BSONObject;
 
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -106,8 +107,13 @@ public class QueryManager {
 			log.info("connected to DB "+this.db.getName());
 			this.coll = db.getCollection(collectionName);
 			log.info("connected to Collection "+this.coll.getName());
-			// TODO: make sure needed indexes are available
-			//this.coll.ensureIndex(new BasicDBObject("meta:eumssi",1));
+			// create needed indexes
+			this.coll.createIndex(new BasicDBObject("processing.available_data",1));
+			this.coll.createIndex(new BasicDBObject("meta.source.inLanguage",1));
+			this.coll.createIndex(new BasicDBObject("source",1));
+			for (Object queueId : this.queues.keySet()) {
+				this.coll.createIndex(new BasicDBObject(String.format("processing.queues.%s",(String)queueId),1));
+			}
 		} catch (UnknownHostException e) {
 			log.error("Error setting up DB connection", e);
 			throw new EumssiException(StatusType.ERROR_DB_CONNECT);
@@ -156,10 +162,14 @@ public class QueryManager {
 	 *  <br><code>StatusType.ERROR_DB_QUERY</code> (Error 401) if an unhandled error occurred during the query execution.
 	 *  <br><code>StatusType.ERROR_UNKNOWN</code> (Error 999) if an unhandled exception is thrown.
 	 */
-	public List<String> getQueuePending(String queueId, Integer maxItems, Boolean markItems) throws EumssiException {
+	public List<String> getQueuePending(String queueId, Integer maxItems, Boolean markItems, String filters) throws EumssiException {
 		DBObject query = null;
 		if (this.queues.containsKey(queueId)) {
 			query = (DBObject) JSON.parse(this.queues.getProperty(queueId));
+			// check that item is not yet (being) processed
+			String testPending = String.format("{\"processing.queues.%s\":{\"$nin\":[\"in_process\",\"processed\"]}}",queueId);
+			query.putAll((BSONObject) JSON.parse(testPending));
+			query.putAll((BSONObject) JSON.parse(filters)); // apply user-provided filters
 		} else {
 			throw new EumssiException(StatusType.ERROR_INVALID_QUEUE_ID);
 		}
@@ -169,7 +179,7 @@ public class QueryManager {
 		for (DBObject res : resCursor) {
 			resList.add(res.get("_id").toString());
 			if (markItems) {
-				coll.update(new BasicDBObject("_id", res.get("_id")), new BasicDBObject("$set", new BasicDBObject("processing_state."+queueId,"in_process")));
+				coll.update(new BasicDBObject("_id", res.get("_id")), new BasicDBObject("$set", new BasicDBObject("processing.queues."+queueId,"in_process")));
 			}
 		}
 		return resList;
@@ -190,14 +200,14 @@ public class QueryManager {
 			throw new EumssiException(StatusType.ERROR_INVALID_ITEM_ID);			
 		}
 		Map<String, Object> itemMeta = new HashMap<String,Object>();
-		for (String f : fields) {
+		for (String f : fields) { //TODO: should allow for "meta.extracted" fields
 			try {
 				if (f.equals("CAS")) {
 					itemMeta.put("CAS", (DBObject)((DBObject)res.get("cas")).get("json"));
 				} else if (f.equals("*")) {
-					itemMeta.put("*", (DBObject)((DBObject)res.get("source_meta")).get("eumssi"));
+					itemMeta.put("*", (DBObject)((DBObject)res.get("meta")).get("source"));
 				} else {
-					itemMeta.put(f, ((DBObject)((DBObject)res.get("source_meta")).get("eumssi")).get(f));
+					itemMeta.put(f, ((DBObject)((DBObject)res.get("meta")).get("source")).get(f));
 				}
 			} catch (Exception e) { //TODO: better exception handling
 				log.error(String.format("couldn't insert field %s in document %s", f, itemId), e);
@@ -219,8 +229,8 @@ public class QueryManager {
 		for (Object item : jsonData) {
 			try {
 				String itemId = (String) ((DBObject)item).get("content_id");
-			WriteResult r = coll.update(new BasicDBObject("_id", UUID.fromString(itemId)), new BasicDBObject("$set", new BasicDBObject("processing_results."+queueId,((DBObject) item).get("result"))));
-			coll.update(new BasicDBObject("_id", UUID.fromString(itemId)), new BasicDBObject("$set", new BasicDBObject("processing_state."+queueId,"processed")));
+			WriteResult r = coll.update(new BasicDBObject("_id", UUID.fromString(itemId)), new BasicDBObject("$set", new BasicDBObject("processing.results."+queueId,((DBObject) item).get("result"))));
+			coll.update(new BasicDBObject("_id", UUID.fromString(itemId)), new BasicDBObject("$set", new BasicDBObject("processing.queues."+queueId,"processed")));
 			updatedCount += r.getN();
 			} catch (Exception e) { //TODO: better exception handling
 				log.error(String.format("couldn't insert data in document %s", item), e);				
