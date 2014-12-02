@@ -6,10 +6,12 @@ import datetime
 from eumssi_converter import EumssiConverter
 
 def transf_date(x):
+    if x=="": #no date information
+        x= "1900-01-01 00:00:00.0" #fake date for empty-location, should be aware of that when using
     if x.__class__==datetime.datetime:
         return x
     else:
-        return datetime.datetime.strptime(x,'%Y-%m-%d %H:%M:%S') #2014-02-24 17:57:12.0 for example
+        return datetime.datetime.strptime(x[:-2],'%Y-%m-%d %H:%M:%S') #2014-02-24 17:57:12.0 for example
 
 def transf_lang(lang):
     return lang #Twitter uses two character ISO codes
